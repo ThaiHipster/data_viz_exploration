@@ -1,0 +1,484 @@
+---
+title: "Lab_01_working_draft"
+author: "Robert Alward"
+date: "2/13/2021"
+output: html_document
+---
+
+```{r setup, echo=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Project Overview
+
+In this project I am looking to provide an answers to the question, "How do the final grades of 
+those who who study a lot differ from those who don't study a lot, and are there actions that 
+change the differences created by study time." In this document I will 
+
+* load and clean the two key datasets math and Portuguese final grades and life effects
+* separate data sets into difference subsets depending on different factors
+* Key factors to separate on: absences, alcohol consumption, going out, romantic, 
+freetime, romantic relationships, extra-curricular activities
+* Prepare different graphs based on the factors above, study time, and final grades
+* report the results
+* give several possible conclusions based on the results
+
+## Data
+
+To address this question, I will use data from the 2014 UCI Dataset on Student Performance, which was conducted in Portugal to looks at "student achievement in secondary education of two Portuguese schools".  More information about this survey can be found at [UCI's Machine Learning Repository Page] (https://archive.ics.uci.edu/ml/datasets/Student+Performance). 
+
+
+Here there are 5 different datasets described below:
+
+* mat: This is the original dataset of final math scores and recorded factors
+* por: This is the original dataset of the final portugese scores and recorded factors
+* combo: This is the combined full datasets of math and portugese scores
+* mat_small: This is the dataset containing the factors for the analysis on the math dataset
+* por_small: This is the dataset containing the facotrs for analysis on the portugese dataset
+
+```{r packages_load, echo = FALSE, warning=FALSE, message=FALSE, results='hide'}
+library(tidyverse)
+library(ggplot2)
+```
+
+```{r data_load, echo = FALSE, warning=FALSE, message=FALSE, results='hide'}
+# Loading math and portugese sets seperately
+mat=read.table("student-mat.csv",sep=";",header=TRUE)
+por=read.table("student-por.csv",sep=";",header=TRUE)
+
+# Creating Merged Dataset
+combo=merge(mat,por,by=c("school","sex","age","address","famsize","Pstatus","Medu","Fedu","Mjob","Fjob","reason","nursery","internet"))
+print(head(combo))
+
+# Variable Exploration: 
+mat_small <- mat[,c("studytime","activities","goout","freetime","romantic",
+                    "absences","failures","Dalc","Walc","age","G3")]
+por_small <- por[,c("studytime","activities","goout","freetime","romantic",
+                    "absences","failures","Dalc","Walc","age","G3")]
+
+#### 1.3 Math Scores Mean Translation
+mat_studytime_1 <- filter(mat_small, studytime == 1)
+mat_studytime_2 <- filter(mat_small, studytime == 2)
+mat_studytime_3 <- filter(mat_small, studytime == 3)
+mat_studytime_4 <- filter(mat_small, studytime == 4)
+
+# 1.3.a Dataset: Study Time, Number of Instance, Mean Test Scores
+mat_mean <- count(mat_small,studytime)
+mat_mean$mean[1] <- mean(mat_studytime_1$G3)
+mat_mean$mean[2] <- mean(mat_studytime_2$G3)
+mat_mean$mean[3] <- mean(mat_studytime_3$G3)
+mat_mean$mean[4] <- mean(mat_studytime_4$G3)
+
+mat_mean_2 = aggregate(mat_small,
+                by = list(mat_small$studytime),
+                FUN = mean)
+
+#### 1.4 Portugese Scores Mean Translation
+por_studytime_1 <- filter(por_small, studytime == 1)
+por_studytime_2 <- filter(por_small, studytime == 2)
+por_studytime_3 <- filter(por_small, studytime == 3)
+por_studytime_4 <- filter(por_small, studytime == 4)
+
+
+por_mean <- count(por_small,studytime)
+por_mean$mean[1] <- mean(por_studytime_1$G3)
+por_mean$mean[2] <- mean(por_studytime_2$G3)
+por_mean$mean[3] <- mean(por_studytime_3$G3)
+por_mean$mean[4] <- mean(por_studytime_4$G3)
+```
+
+## Trial Plots 
+Here I am looking at the trial aggregate plots for the datasets as well as the mean of performances
+
+```{r general plots, echo=FALSE}
+## Creating Changed datasets
+#### 2.1 Exploration Bar
+ggplot(mat_small)+
+  geom_bar(aes(x=studytime, fill=studytime)) # computed variable: count
+
+#### 2.2 Exploration Math Mean
+ggplot(data=mat_mean) +
+  geom_segment(aes(x=studytime, xend=studytime,y=0,yend=mean, color=studytime))+
+  geom_point(aes(x=studytime,y=mean,color=studytime),size=2)+
+  coord_flip()
+
+#### 2.3 Exploration Portuguese Mean
+ggplot(data=por_mean) +
+  geom_segment(aes(x=studytime, xend=studytime,y=0,yend=mean, color=studytime))+
+  geom_point(aes(x=studytime,y=mean,color=studytime),size=2)+
+  coord_flip()
+```
+
+## Definition of low-mid-high absences and alcohol consumption
+
+For the different Comparison plots there were a few different data manipulations and categorizations done.
+The two key categorizations were those of absences and alcohol consumption and the R code is shown below
+
+
+```{r data_rename, echo=FALSE}
+#Definition of absences
+low_absence<- c(0:5)
+mid_absence <- c(5:15)
+hi_absence <- c(15:75)
+
+#definition of alcohol consumption
+low_alc<- c("2","3")
+mid_alc <- c("4", "5", "6")
+hi_alc <- c("7", "8", "9", "10")
+```
+
+## Dataset Creation
+
+Here I have set up a series of different aggregate datasets in order to see the differences caused by different
+actions that students can data. The different new aggregate datasets created are listed below. 
+
+* Activities: Whether or not students do extra curricular activities (y or n)
+* Go Out: How often people go out with friends (1 - 5)
+* Freetime: How much free time people have after school (1 - 5)
+* Romantic: Do they have a romantic relationship (y or n)
+* Absences: The number of school absences (1-93)
+* Failures: The number of past class failures (1-4)
+* Alcohol: How much alcohol people consume in a week (1-12)
+
+```{r aggregates, echo = FALSE, warning=FALSE, message=FALSE, results='hide'}
+#### 3.1 Summary -------------------------------------------------------------
+str(por_small)
+str(mat_small)
+
+
+#### 3.2 Activities ---------------------------------------------------------
+
+#Selecting the different data for activities, grades, and study time
+str(mat_small)
+mat_act <- mat_small[,c(1,2,11)] 
+por_act <- por_small[,c(1,2,11)]
+
+mat_act_mean = aggregate(mat_act,
+                         by = list(mat_act$studytime,mat_act$activities),
+                         FUN = mean)
+mat_act_mean <- mat_act_mean[,c(-3,-4)]
+names(mat_act_mean) <- c("studytime","activites","math_grade")
+
+por_act_mean = aggregate(por_act,
+                by = list(por_act$studytime,por_act$activities),
+                FUN = mean)
+por_act_mean <- por_act_mean[,c("Group.1","Group.2","G3")]
+names(por_act_mean) <- c("studytime","activities","portugese_grade")
+
+##### 3.3 Go Out ?  ---------------------------------------------------------
+str(mat_small)
+mat_goout <- mat_small[,c(1,3,11)]
+por_goout <- por_small[,c(1,3,11)]
+
+mat_goout_mean = aggregate(mat_goout,
+                         by = list(mat_goout$studytime,mat_goout$goout),
+                         FUN = mean)
+mat_goout_mean <- mat_goout_mean[,c(-3,-4)]
+names(mat_goout_mean) <- c("studytime","goout","math_grade")
+
+por_goout_mean = aggregate(por_goout,
+                         by = list(por_goout$studytime,por_goout$goout),
+                         FUN = mean)
+
+por_goout_mean <- por_goout_mean[,c("Group.1","Group.2","G3")]
+names(por_goout_mean) <- c("studytime","goout","portugese_grade")
+por_goout_mean$goout <- as.factor(por_goout_mean$goout)
+print(por_goout_mean)
+
+#### 3.4 Freetime  ---------------------------------------------------------
+
+str(mat_small)
+mat_freetime <- mat_small[,c(1,4,11)]
+por_freetime <- por_small[,c(1,4,11)]
+
+mat_freetime_mean = aggregate(mat_freetime,
+                           by = list(mat_freetime$studytime,mat_freetime$freetime),
+                           FUN = mean)
+mat_freetime_mean <- mat_freetime_mean[,c(-3,-4)]
+names(mat_freetime_mean) <- c("studytime","freetime","math_grade")
+
+por_freetime_mean = aggregate(por_freetime,
+                           by = list(por_freetime$studytime,por_freetime$freetime),
+                           FUN = mean)
+por_freetime_mean <- por_freetime_mean[,c("Group.1","Group.2","G3")]
+names(por_freetime_mean) <- c("studytime","freetime","portugese_grade")
+print(por_freetime_mean)
+por_freetime_mean$freetime <- as.factor(por_freetime_mean$freetime)
+
+#### 3.5 Romantic  ---------------------------------------------------------
+
+str(mat_small)
+mat_romantic <- mat_small[,c(1,5,11)]
+por_romantic <- por_small[,c(1,5,11)]
+
+mat_romantic_mean = aggregate(mat_romantic,
+                              by = list(mat_romantic$studytime,mat_romantic$romantic),
+                              FUN = mean)
+mat_romantic_mean <- mat_romantic_mean[,c(-3,-4)]
+names(mat_romantic_mean) <- c("studytime","romantic","math_grade")
+
+por_romantic_mean = aggregate(por_romantic,
+                              by = list(por_romantic$studytime,por_romantic$romantic),
+                              FUN = mean)
+por_romantic_mean <- por_romantic_mean[,c("Group.1","Group.2","G3")]
+names(por_romantic_mean) <- c("studytime","romantic","portugese_grade")
+print(por_romantic_mean)
+#### 3.6 Absences  ---------------------------------------------------------
+
+low_absence<- c(0:10)
+mid_absence <- c(10:30)
+hi_absence <- c(30:75)
+
+str(mat_small)
+
+mat_absence <- mat_small[,c(1,6,11)]
+por_absence <- por_small[,c(1,6,11)]
+
+mat_absence <- mutate(mat_absence, abs_level=ifelse(absences  %in%  low_absence, "low_absence",
+                                             ifelse(absences  %in%  mid_absence, "mid_absence",
+                                             ifelse(absences  %in%  hi_absence, "hi_absence","NA"))))
+
+por_absence <- mutate(por_absence, abs_level=ifelse(absences  %in% low_absence, "low_absence",
+                                             ifelse(absences  %in% mid_absence, "mid_absence",
+                                              ifelse(absences %in% hi_absence, "hi_absence","NA"))))
+
+mat_absence_mean = aggregate(mat_absence,
+                              by = list(mat_absence$studytime,mat_absence$abs_level),
+                              FUN = mean)
+
+mat_absence_mean <- mat_absence_mean[,c(-3,-4)]
+names(mat_absence_mean) <- c("studytime","absence","math_grade")
+
+por_absence_mean = aggregate(por_absence,
+                              by = list(por_absence$studytime,por_absence$abs_level),
+                              FUN = mean)
+por_absence_mean <- por_absence_mean[,c("Group.1","Group.2","G3")]
+names(por_absence_mean) <- c("studytime","absence","portugese_grade")
+
+
+#### 3.7 Failures  ---------------------------------------------------------
+str(mat_small)
+
+mat_failures <- mat_small[,c(1,7,11)]
+por_failures <- por_small[,c(1,7,11)]
+
+mat_failures_mean = aggregate(mat_failures,
+                              by = list(mat_failures$studytime,mat_failures$failures),
+                              FUN = mean)
+mat_failures_mean <- mat_failures_mean[,c(-3,-4)]
+names(mat_failures_mean) <- c("studytime","failures","math_grade")
+
+por_failures_mean = aggregate(por_failures,
+                              by = list(por_failures$studytime,por_failures$failures),
+                              FUN = mean)
+por_failures_mean <- por_failures_mean[,c("Group.1","Group.2","G3")]
+names(por_failures_mean) <- c("studytime","failures","portugese_grade")
+por_failures_mean$failures <- as.factor(por_failures_mean$failures)
+
+#### 3.8 Alcohol  ---------------------------------------------------------
+low_alc<- c("2","3")
+mid_alc <- c("4", "5", "6")
+hi_alc <- c("7", "8", "9", "10")
+
+str(mat_small)
+
+mat_alcohol <- mat_small
+mat_alcohol$alc <- mat_alcohol$Dalc+mat_alcohol$Walc
+mat_alc <- mat_alcohol[,c(1,11,12)]
+
+por_alcohol <- por_small
+por_alcohol$alc <- por_alcohol$Dalc+por_alcohol$Walc
+por_alc <- por_alcohol[,c(1,11,12)]
+
+mat_alc <- mutate(mat_alc, alc_level=ifelse(alc %in% low_alc, "low_alc",
+                                                 ifelse(alc %in% mid_alc, "mid_alc",
+                                                        ifelse(alc %in% hi_alc, "hi_alc","NA"))))
+
+por_alc <- mutate(por_alc, alc_level=ifelse(alc %in% low_alc, "low_alc",
+                                            ifelse(alc %in% mid_alc, "mid_alc",
+                                                   ifelse(alc %in% hi_alc, "hi_alc","NA"))))
+
+
+mat_alc_mean = aggregate(mat_alc,
+                              by = list(mat_alc$studytime,mat_alc$alc_level),
+                              FUN = mean)
+mat_alc_mean <- mat_alc_mean[,c(-4,-5)]
+names(mat_alc_mean) <- c("studytime","alc_level","math_grade")
+
+por_alc_mean = aggregate(por_alc,
+                              by = list(por_alc$studytime,por_alc$alc_level),
+                              FUN = mean)
+por_alc_mean <- por_alc_mean[,c("Group.1","Group.2","G3")]
+names(por_alc_mean) <- c("studytime","alc_level","portugese_grade")
+print(por_alc_mean)
+
+```
+
+## Initial Graph Creation
+
+```{r activities, echo = FALSE, warning=FALSE, message=FALSE, results='hide'} 
+#### 4.2 Activities  ---------------------------------------------------------
+por_act_mean
+
+ggplot(data=por_act_mean, aes(x=studytime, y=portugese_grade, group=activities)) +
+  geom_segment(aes(x=studytime, xend=studytime,y=0,yend=portugese_grade))+
+  geom_point(aes(x=studytime,y=portugese_grade, shape = activities, color=activities, fill=activities ),size=4)+
+  labs(x="Studytime in Hours",y="Mean Grades",
+       title="Mean Grades based on Study Time Based on Activities") +
+  coord_flip() +
+  theme_classic()
+
+
+#### 4.3 Go Out  ---------------------------------------------------------
+por_goout_mean
+
+ggplot(data=por_goout_mean) +
+  geom_segment(aes(x=studytime, xend=studytime,y=0,yend=portugese_grade))+
+  geom_point(aes(x=studytime,y=portugese_grade,shape=goout, color=goout, fill=goout ), size=4)+
+  labs(x="Studytime in Hours",y="Mean Grades",
+       title="Mean Grades based on Study Time based Going Out Levels")+
+  coord_flip() +
+  theme_classic()
+
+#### 4.4 Freetime # this needs work---------------------------------------
+por_freetime_mean
+
+ggplot(data=por_freetime_mean) +
+  geom_segment(aes(x=studytime, xend=studytime,y=0,yend=portugese_grade))+
+  geom_point(aes(x=studytime,y=portugese_grade,shape=freetime, color=freetime, fill=freetime ),size=4)+
+  labs(x="Studytime in Hours",y="Mean Grades",
+       title="Mean Grades based on Study Time with Freetime")+
+  coord_flip() +
+  theme_classic()
+
+#### 4.5 Romantic  ---------------------------------------------------------
+por_romantic_mean
+
+ggplot(data=por_romantic_mean) +
+  geom_segment(aes(x=studytime, xend=studytime,y=0,yend=portugese_grade))+
+  geom_point(aes(x=studytime,y=portugese_grade,shape = romantic, color=romantic, fill=romantic ),size=4)+
+  labs(x="Studytime in Hours",y="Mean Grades",
+       title="Mean Grades based on Study Time with Romantic")+
+  coord_flip() +
+  theme_classic()
+
+#### 4.6 Absences  ---------------------------------------------------------
+por_absence_mean
+
+ggplot(data=por_absence_mean) +
+  geom_segment(aes(x=studytime, xend=studytime,y=0,yend=portugese_grade))+
+  geom_point(aes(x=studytime,y=portugese_grade,shape = absence, color=absence, fill=absence ),size=4)+
+  labs(x="Studytime in Hours",y="Mean Grades",
+       title="Mean Grades based on Study Time with Absences")+
+  coord_flip() +
+  theme_classic()
+
+#### 4.7 Failures ### Keep working on this  -------------------------------
+print(por_failures_mean)
+
+ggplot(data=por_failures_mean) +
+  geom_segment(aes(x=studytime, xend=studytime,y=0,yend=portugese_grade))+
+  geom_point(aes(x=studytime,y=portugese_grade,shape=failures, color=failures, fill=failures),size=4)+
+  labs(x="Studytime in Hours",y="Mean Grades",
+       title="Mean Grades based on Study Time with Failures")+
+  coord_flip() +
+  theme_classic()
+
+#### 4.8 Alcohol  ---------------------------------------------------------
+print(por_alc_mean)
+
+ggplot(data=por_alc_mean) +
+  geom_segment(aes(x=studytime, xend=studytime,y=0,yend=portugese_grade))+
+  geom_point(aes(x=studytime,y=portugese_grade,shape=alc_level, color=alc_level, fill=alc_level),size=4)+
+  labs(x="Studytime in Hours",y="Mean Grades",
+       title="Mean Grades based on Study Time with Alcohol Consumption")+
+  coord_flip() +
+  theme_classic()
+
+```
+
+
+## Selected Graphs for Final Analysis
+
+
+```{r action, echo = FALSE, warning=FALSE, message=FALSE, results='hide'}
+
+#### Key Outcome Graphs
+
+# Summary of Student Studytimes
+ggplot(mat_small)+
+  geom_bar(aes(x=studytime, fill=studytime))+ 
+  scale_fill_manual(values = c("#00AFBB", "#c1ffbd", "#ff856f","#ff93c9")) +
+  labs(x="Studytime in Hours",y="Mean Grades",
+       title="Total Student Study Times")
+
+# Activities
+ggplot(data=por_act_mean, aes(x=studytime, y=portugese_grade, group=activities)) +
+  geom_segment(aes(x=studytime, xend=studytime,y=0,yend=portugese_grade))+
+  geom_point(aes(x=studytime,y=portugese_grade, shape = activities, color=activities, fill=activities ),size=4)+
+  scale_color_manual(values = c("#00AFBB", "#E7B800", "#FC4E07"))+
+  labs(x="Studytime in Hours",y="Mean Grades",
+       title="1. Mean Grades based on Study Time Based on Activities") +
+  coord_flip() +
+  theme_classic()
+
+# Romantic
+ggplot(data=por_romantic_mean) +
+  geom_segment(aes(x=studytime, xend=studytime,y=0,yend=portugese_grade))+
+  geom_point(aes(x=studytime,y=portugese_grade,shape = romantic, color=romantic, fill=romantic ),size=4)+
+  scale_color_manual(values = c("#ff93c9", "#b0a2ff"))+
+  labs(x="Studytime in Hours",y="Mean Grades",
+       title="2. Mean Grades based on Study Time with Romantic Activity")+
+  coord_flip() +
+  theme_classic()
+
+# Failures
+ggplot(data=por_failures_mean) +
+  geom_segment(aes(x=studytime, xend=studytime,y=0,yend=portugese_grade))+
+  geom_point(aes(x=studytime,y=portugese_grade,shape=failures, color=failures, fill=failures),size=4)+
+  scale_color_manual(values = c("#fff080", "#ff18aa","#bce65b","#5796c9"))+
+  labs(x="Studytime in Hours",y="Mean Grades",
+       title="3. Mean Grades based on Study Time with Failures")+
+  coord_flip() +
+  theme_classic()
+
+# Alcohol
+ggplot(data=por_alc_mean) +
+  geom_segment(aes(x=studytime, xend=studytime,y=0,yend=portugese_grade))+
+  geom_point(aes(x=studytime,y=portugese_grade,shape=alc_level, color=alc_level, fill=alc_level),size=4)+
+  scale_color_manual(values = c("#ff9c08", "#ff18aa","#30148c"))+
+  labs(x="Studytime in Hours",y="Mean Grades",
+       title="4. Mean Grades based on Study Time with Alcohol Consumption")+
+  coord_flip() +
+  theme_classic()
+
+```
+
+## Results from the Selected Graphs
+
+Activities:
+From the Activity graph, we can see that whether or not students participates being involved in activities are more likely to get better grades even with the same Study Hours. Except for those who studied 3 hours, the averages of those who choose to participate in activities have higher grades. While this is an average difference between those who participate in activities the difference is not incredible large as on average mean grades remain above 10. 
+
+Romance:
+
+From the Romance graph, we can see that whether or not students participates being involved in relationships in highschool are more likely to get better grades even with the same Study Hours. Again, similar to the actives graph except for those who studied 3 hours, the averages of those who weren't in a romantic relationship had average higher grades for the study time. Again, the gap is not incredibly large as on average mean grades remain above 10. 
+
+Failures:
+
+From the Failures graph, we can see that those having 0 failures are significantly more likely to get better grades even with the same number of Study Hours. Those who have 1-2 failures have significantly lower performance levels. Here there is a large gap between those who have failed on a test vs. those who haven't. 
+
+Alcohol Consumption:
+
+From the Alcohol Consumption graph, we can see that those having high alcohol consumption consistently perform under those who have low or mid alcohol consumption. Those who have low alcohol consumption perform better than those with mid and high consumption for study hours 1-3, but for the 4 hours of study time those who consume a medium level of alcohol  have the highest average grades.
+
+## Conclusion
+
+From these graphs they show that even when you keep Study time consistent there is a relationship that students external actions have with their grades. The four key take aways are 
+
+ 1. perform at least some extracurricular activity
+ 2. Not be in a romantic relationship
+ 3. Avoid any failures
+ 4. have mid or low alcohol consumption
+
+One of the largest impacts on student grades is the presence of a failure. Additionally it seems to be key to avoid drinking hih levels of alcohol consistently which I classified as drinking 7-10 times per week. This makes sense as this consistent alcohol consumption would consistently impair a students daily performance whereas a mid or low level alcohol consumption means that students can catch up on their work or studying. 
+

@@ -1,0 +1,263 @@
+---
+title: "Lab 01, Preparatory Notes"
+author: "KNM"
+output: html_document
+---
+
+```{r,eval=F, include=F}
+knitr::opts_chunk$set(fig.width=3, fig.height=2) 
+```
+
+## Introduction
+
+In this exercise, we will attempt to provide an answer to the question, "How do regular users of marijuana differ from those who have never used marijuana in terms of their self-reported overall health?" In this document we will:
+
+* load our data
+* make a definition of "regular users"
+* filter our data to create two new, smaller datasets: a "never users" dataset and a "regular users" dataset
+* combine those two datasets
+* prepare a large variety of graphs displaying the distribution of self-reported overall health of both groups
+* report the results
+* give several possible conclusions based on these results
+
+For additional information about many of the R commands in these notes, see the Guide to Basic Displays of Categorical Data
+
+## Data
+
+To address this question, we will use data from the 2014 National Survey on Drug Use and Health, which is conducted annually by the Substance Abuse and Mental Health Services Administration (SAMHSA), an agency in the U.S. Department of Health and Human Services (DHHS).  More information about this survey can be found at [ICPSR's data archive page](http://www.icpsr.umich.edu/icpsrweb/ICPSR/series/64).  The data has been prepared into a .Rdata file, so we can simply load it in the workspace with the `load()` command. At this time, we'll also load our packages:
+
+```{r data_and_packages_load, message=F}
+library(tidyverse)
+load("36361-0001-Data.rda") #load() is only for .rda; distinct from a read.x() 
+# jmen <- read.table("jmen.txt")
+```
+
+Because the data object has an unpleasant name, *da36361.0001*, we make a copy with the name *full_data* and remove the original data object. (This step is optional, it just saves us from typing an unwiedly name in the rest of this project.)
+
+```{r data_rename}
+full_data <- da36361.0001
+remove(da36361.0001)
+```
+
+## Definition of "Regular Users"
+
+Now, we need to determine what we will consider to be a "regular user."  We will base this definition off of the number of a days that a respondent reports using marijuana in the past 30 days.
+
+```{r reg_use_def}
+regular_use_criteria <- 7
+```
+
+As seen in the above code chunk, we defined a "regular user" as someone who reports using marijuana on at least `r regular_use_criteria` days in the past 30 days.
+
+## Data Manipulation
+
+Using this definition of "regular users," we now create two datasets: the regular users data and the never user data:
+
+```{r subsetting_data}
+regular_users <- filter(full_data, MJDAY30A >= regular_use_criteria)
+never_users <- filter(full_data, MJEVER == "(2) No")
+```
+
+Next, we remove the *full_data* object and drop the unneeded variables from our *regular_users* and *never_users* datasets.  These steps are not necessary, but clearing out unneeded objects and variables can improve the speed with with your code is executed.
+
+```{r shrinking_data}
+remove(full_data)
+
+regular_users <- select(regular_users, HEALTH)
+never_users <- select(never_users, HEALTH)
+```
+
+It may be useful to us to have the data about both groups (regular and never users) in our data object.  To accomplish this, we add a new variable *user_status* to both our data objects.  For all observations in *regular_users* we wish to set the value of this variable to "regular."  For all observations in *never_users* we wish to set the value of this variable to "never."  Once we have added this variable to both datasets, we combine them using the **rbind()** function.  **rbind()** stands for row bind -- it binds or glues two datasets together along by putting one dataset on top of the other.  For a **rbind()** command to work, the two datasets being combined must have the same columns/variables (there is also a **cbind()** function, but we will rarely use it).
+
+```{r combining_data}
+regular_users$user_status <- "regular"
+never_users$user_status <- "never"
+combined_data <- rbind(regular_users,never_users)
+```
+
+## Graphs
+
+We start our graphical analysis by making a some basic plots showing the self-reported overall health of regular users.
+
+```{r initial_regular_user_charts}
+#bar
+ggplot(regular_users)+
+  geom_bar(aes(x=HEALTH,fill=HEALTH,y=..count../sum(..count..))) # computed variable: count
+
+#pie
+ggplot(regular_users)+
+  geom_bar(aes(x=0,fill=HEALTH,y=..count../sum(..count..)))+
+  coord_polar(theta="y")
+
+#coxcomb
+ggplot(regular_users)+
+  geom_bar(aes(x=HEALTH,fill=HEALTH,y=..count../sum(..count..)),width=1)+
+  coord_polar()+
+  scale_y_sqrt()
+
+#dot
+ggplot(regular_users) +
+  geom_segment(aes(x=HEALTH,xend=HEALTH, color=HEALTH),yend=0,stat="count",width=.02) +
+  geom_point(aes(x=HEALTH, color=HEALTH),stat="count",size=2)+
+  coord_flip()
+```
+
+Let's focus on the bar plot. We began with a very basic bar plot and will now fiddle with the settings until we have a more appealing version.
+
+```{r initial_bar_charts}
+#use a brewer color palette
+ggplot(regular_users)+geom_bar(aes(x=HEALTH,fill=HEALTH))+
+  scale_fill_brewer(palette="RdYlGn",direction=-1)
+
+
+
+#reverse direction of color palette, improve labels
+ggplot(regular_users)+
+  geom_bar(aes(x=HEALTH,fill=HEALTH))+
+  scale_fill_brewer(palette="RdYlBu",direction=-1,
+                    labels=c("Excellent","Very Good","Good","Fair","Poor"),
+                    name="Self-Reported \nOverall Health")+
+  labs(x="")+
+  scale_x_discrete(labels=c("Excellent","Very Good","Good","Fair","Poor"))
+
+##########STOPPED HERE ON Day 03
+library(scales)
+#convert to relative frequency, add title and axis labels, apply theme_classic()
+ggplot(regular_users)+
+  geom_bar(aes(x=HEALTH,fill=HEALTH,y=..count../sum(..count..)))+
+  scale_fill_brewer(palette="RdYlBu",direction=-1,
+                    labels=c("Excellent","Very Good","Good","Fair","Poor"),
+                    name="Self-Reported \nOverall Health")+
+  labs(x="",y="Proportion of Respondants",
+       title="Self-Reported Health of Regular Users of Marijuana")+
+  scale_x_discrete(labels=c("Excellent","Very Good","Good","Fair","Poor"))+
+  scale_y_continuous(labels=label_percent())+
+  theme_classic()
+```
+
+Having settled on a pleasing look, we can create the same plot for our never users:
+
+```{r never_bar_plot}
+ggplot(never_users)+
+  geom_bar(aes(x=HEALTH,fill=HEALTH,y=..count../sum(..count..)))+
+  scale_fill_brewer(palette="RdYlBu",direction=-1,
+                    labels=c("Excellent","Very Good","Good","Fair","Poor"),
+                    name="Self-Reported \nOverall Health")+
+  labs(x="",y="Proportion of Respondants",
+       title="Self-Reported Health of Never Users of Marijuana")+
+  scale_x_discrete(labels=c("Excellent","Very Good","Good","Fair","Poor"))+
+  scale_y_continuous(labels=label_percent())+
+  theme_classic()
+```
+
+Using the *combined_data* object, we can show these two graphs next to each other by faceting by user status:
+
+```{r faceted_bar_plot}
+ggplot(combined_data)+
+  geom_bar(aes(x=HEALTH,fill=HEALTH,y=..count../sum(..count..)))+
+  scale_fill_brewer(palette="RdYlBu",direction=-1,
+                    labels=c("Excellent","Very Good","Good","Fair","Poor"),
+                    name="Self-Reported \nOverall Health")+
+  labs(x="",y="Proportion of Respondants",
+       title="Self-Reported Health of Never Users of Marijuana vs. Regular Users")+
+  scale_x_discrete(labels=c("Excellent","Very Good","Good","Fair","Poor"))+
+  scale_y_continuous(labels=label_percent())+
+  theme_classic()+
+  facet_wrap("user_status")
+```
+
+Not quite what we wanted.  Notice that this is showing the relative frequency of each combination of health and user status.  We would prefer to see the relative frequency of health *dependent* on user status.  This requires computing the sum (the denominator of our relative frequency fraction) on a *per panel/facet basis*:
+
+```{r improved_faceted_bar_plot}
+ggplot(combined_data)+
+  geom_bar(aes(x=HEALTH,fill=HEALTH,
+               y = (..count..)/tapply(..count..,..PANEL..,sum)[..PANEL..]))+
+  scale_fill_brewer(palette="RdYlBu",direction=-1,
+                    labels=c("Excellent","Very Good","Good","Fair","Poor"),
+                    name="Self-Reported \nOverall Health")+
+  labs(x="",y="Relative Frequency",
+       title="Self-Reported Health of Never Users of Marijuana vs. Regular Users")+
+  scale_x_discrete(labels=c("Excellent","Very Good","Good","Fair","Poor"))+
+  theme_classic()+
+  facet_wrap("user_status")
+```
+
+We could have displayed this information in stacked bar plots instead:
+
+```{r stacked_bar_plot}
+ggplot(combined_data)+
+  geom_bar(aes(x=user_status,fill=HEALTH),position="fill")+
+  scale_fill_brewer(palette="RdYlBu",direction=-1,
+                    labels=c("Excellent","Very Good","Good","Fair","Poor"),
+                    name="Self-Reported \nOverall Health")+
+  labs(x="",y="Relative Frequency",
+       title="Self-Reported Health by User Status")+
+  scale_x_discrete(labels=c("Never Used","Regular Users"))+
+  theme_classic()
+```
+
+We could also reverse the roles of user status and health status:
+
+```{r stacked_bar_plot_2}
+ggplot(combined_data)+
+  geom_bar(aes(fill=user_status,x=HEALTH),position="fill")+
+  scale_fill_brewer(palette="Greens",direction=1,
+                    labels=c("Never Used","Regular Users"),
+                    name="Marijuana Use")+
+  labs(x="",y="Relative Frequency",
+       title="User Status by Self-Reported Health")+
+  scale_x_discrete(labels=c("Excellent","Very Good","Good","Fair","Poor"))+
+  theme_classic()
+```
+
+However, we should avoid using this graph -- looking at the percent of respondants who were classified as "never used" or "regular users" without also considering the respondants who weren't classified into either of those categories could be deceptive. This graph gives the impression that roughly 15% of respondants with poor health are regular marijuana users, but this is far from true, since the many respondants with poor health who tried marijuana at least once, but did not use it on `regular_use_criteria` days in the past 30 days are not present in the data we prepared.
+
+Making a side-by-side barplot takes a little more care, as the standard approach suffers from a simlar flaw as our first attempt at faceting:
+
+```{r poor_side_by_side_bar_plot}
+ggplot(combined_data)+
+  geom_bar(aes(x=HEALTH,fill=user_status,y=..count../sum(..count..)),
+           position="dodge")
+```
+
+Notice that in this graph the total height of all bars is 1 -- we are seeing here the joint distribution of the variables.  If we wanted to see a conditional distribution, we can manually compute the needed values. Let's quickly create a new dataset which contains the numbers we need:
+
+```{r summary_data}
+summary_data_never <- summarize(group_by(never_users, HEALTH,user_status),
+                                count=n())
+summary_data_never$percent <- summary_data_never$count/sum(summary_data_never$count)
+
+summary_data_regular <- summarize(group_by(regular_users, HEALTH, user_status),
+                                  count=n())
+summary_data_regular$percent <- summary_data_regular$count/sum(summary_data_regular$count)
+
+summary_data <- rbind(summary_data_never, summary_data_regular)
+```
+
+```{r improved_side_by_side}
+ggplot(summary_data)+geom_bar(aes(x=HEALTH,fill=user_status,y=percent),
+                              position="dodge",
+                              stat="identity")
+```
+
+Now, the total height of all the "never" bars is 1 and the total height of all the "regular" bars is 1.  We are now seeing the conditional distribution of "HEALTH," conditioned on "user_status."
+
+## Results
+
+From our graphs, we can see that survey respondents who reported never having used marijuana were more likely to describe their overall health as "excellent" than were survey respondents who had used marijuana on at least `r regular_use_criteria` days in the past 30 days.  The percentage of these respondents who described their health as "good," "fair," or "poor" was greater than the corresponding percentages for those who had never used marijuana.  For both groups of respondents, the most commonly given description of their overall health was "very good." 
+
+## Conclusion A
+
+Because regular marijuana users were more likely to report fair or poor health than those who had never used marijuana, we conclude that regular marijuana use has a negative impact on the user's overall health.
+
+## Conclusion B
+
+Because we observed an association between poor health and regular marijuana use, we conclude that those with poor health treat their symptoms with regular marijuana use.
+
+## Conclusion C
+
+Because we observed an association between poor health and regular marijuana use, we conclude that regular marijuana use is also associated with other negative health indicators such as lack of regular exercise.
+
+## Conclusion D
+
+Because those who had never used marijuana were more likely to report excellent health than regular users, we conclude that those who had never used marijuana  tended to have healthier lifestyles.
