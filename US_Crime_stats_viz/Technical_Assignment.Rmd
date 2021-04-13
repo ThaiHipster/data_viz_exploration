@@ -1,0 +1,145 @@
+---
+title: "Technical_Assignment_1"
+author: "Robert Alward"
+date: "2/21/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ggplot2)
+library(tidyverse)
+```
+
+## Intro
+
+Here are the 7 different assignments from Technical Assignment / In-Class Work - Days 7 and 8
+
+```{r intro, include=FALSE}
+crime <- read_csv("CrimeStatebyState.csv")
+names(crime)
+```
+
+## 1. Time-Series US
+
+```{r 1.Time-Series, warning=FALSE, message=FALSE, results='hide'}
+us_data <- filter(crime, State == "United States-Total")
+
+ggplot(us_data, aes(x=Year, y=`Violent Crime rate`)) +
+  geom_line(color="#1ce3a8")+
+  labs(title = "Violent Crime in the US", y= "Crimes per 100,000 residents") +
+  scale_y_continuous(limits=c(0,max(us_data$`Violent Crime rate`)),expand=c(0,0)) +
+  labs(title = "Violent Crime Rate in the United States overall from 1960 to 2014")
+  theme_classic()
+
+```
+
+## 2. Time-Series Crime Category
+
+
+```{r 2. Time-Series Crime Category, warning=FALSE, message=FALSE, results='hide'}
+national_rates <- summarize(group_by(us_data,Year),
+                            violent_rate = sum(`Violent crime total`)/sum(Population)*100000,
+                            murder_rate = sum(`Murder and nonnegligent Manslaughter`)/sum(Population)*100000,
+                            rape_rate = sum(`Legacy rape /1`)/sum(Population)*100000,
+                            assault_rate = sum(`Aggravated assault`)/sum(Population)*100000,
+                            robbery_rate = sum(`Robbery`)/sum(Population)*100000)
+
+national_rates_gathered <- gather(national_rates, key="Crime Type", value="Rate",-c(Year))
+
+?filter
+
+filtered_national_rates_gathered <- filter(national_rates_gathered, `Crime Type` != "violent_rate")
+
+ggplot(filtered_national_rates_gathered, aes(x=Year, y=Rate, color=`Crime Type`))+geom_line()
+
+```
+
+## 3. Time-series Plot: Overall property crime rate for the 4 census regions
+
+
+```{r 3. Time-Series on Overall Property Crime by Regions,  warning=FALSE, message=FALSE, results='hide'}
+
+state_crime <- filter(crime,State != "United States-Total")
+
+northeast_states<- c("Connecticut", "Maine", "Massachusetts", "New Hampshire", "Rhode Island", "Vermont", "New Jersey", "New York", "Pennsylvania")
+midwest_states <- c("Illinois", "Indiana", "Michigan", "Ohio", "Wisconsin", "Iowa", "Kansas", "Minnesota", "Missouri", "Nebraska", "North Dakota", "South Dakota")
+south_states <- c("Delaware", "Florida", "Georgia", "Maryland", "North Carolina", "South Carolina", "Virginia", "District of Columbia", "West Virginia", "Alabama", "Kentucky", "Mississippi", "Tennessee", "Arkansas", "Louisiana", "Oklahoma", "Texas")
+west_states <- c("Arizona", "Colorado", "Idaho", "Montana", "Nevada", "New Mexico", "Utah", "Wyoming", "Alaska", "California", "Hawaii", "Oregon", "Washington")
+
+state_crime <- mutate(state_crime, region=ifelse(State %in% northeast_states, "Northeast",
+                                                 ifelse(State %in% midwest_states, "Midwest",
+                                                        ifelse(State %in% south_states, "South",
+                                                               ifelse(State %in% west_states, "West","NA")))))
+
+regional_rates <- summarize(group_by(state_crime, region,Year),
+                            violent_rate = sum(`Violent crime total`)/sum(Population)*100000,
+                            murder_rate = sum(`Murder and nonnegligent Manslaughter`)/sum(Population)*100000,
+                            rape_rate = sum(`Legacy rape /1`)/sum(Population)*100000,
+                            assault_rate = sum(`Aggravated assault`)/sum(Population)*100000,
+                            robbery_rate = sum(`Robbery`)/sum(Population)*100000,
+                            property_crime_rate = sum(`Property crime total`)/sum(Population)*100000,
+                            motor_theft_rate = sum(`Motor vehicle theft`)/sum(Population)*100000)
+
+ggplot(regional_rates, aes(x=Year,y=property_crime_rate))+
+  geom_line(aes(group=region,color=region))
+
+```
+
+## 4. Box-Plot on Motor Vehicle Theft Rate by Regions
+
+```{r 4. Box-Plot on Motor Vehicle Theft Rate by Regions,  warning=FALSE, message=FALSE, results='hide'}
+
+
+state_crime_2010 <- filter(state_crime, Year==2010)
+state_rates_2010 <- state_crime_2010
+
+state_rates_2010$motor_theft_rate <- (state_rates_2010$`Motor vehicle theft`/(state_rates_2010$Population)*100000)
+
+
+ggplot(state_rates_2010)+
+  geom_boxplot(aes(x=region, y=motor_theft_rate, color = region))+
+  labs(y=" Motor Vehicle Theft Rate")
+
+
+```
+
+
+## 5. Histogram of distribution of murder and non-negligent manslaughter rates
+
+
+```{r 5. Box-Plot on Manslaughter and Murder by Regions,  warning=FALSE, message=FALSE, results='hide'}
+
+state_crime_1990 <- filter(state_crime, Year==1990)
+
+state_crime_1990
+
+ggplot(state_crime_1990,aes(x=`Murder and nonnegligent manslaughter rate`))+
+  geom_histogram(binwidth=2, fill ="#00AFBB")
+
+```
+
+## 6. Scatterplot on Motor Vehicle Theft Rate and Burlary Rate by Regions
+
+```{r 6. Scatterplot on Motor Vehicle Theft Rate and Burlary Rate by Regions,  warning=FALSE, message=FALSE, results='hide'}
+
+state_crime_1990 <- filter(state_crime, Year==1990)
+
+ggplot(state_crime_1990, aes(x=`Motor vehicle theft rate`,y=`Burglary rate`)) +
+  geom_point(aes(x=`Motor vehicle theft rate`,y=`Burglary rate`,shape = region, color = region),size=3)+
+  scale_shape_manual(values=c("West"=16,"South"=15,
+                              "Northeast"=18,"Midwest"=17))+
+  scale_color_manual(values=c("West"="red","South"="green",
+             "Northeast"="blue","Midwest"="purple"))
+```
+
+## 7. Bubble plot
+
+```{r 7. Bubble plot,  warning=FALSE, message=FALSE, results='hide'}
+state_crime_2014 <- filter(state_crime, Year==2014)
+
+ggplot(state_crime_2014, aes(x=`Larceny-theft rate`, y=`Aggravated assault rate`, size = Population)) +
+  geom_point(alpha=0.7 ) +
+  scale_size(range = c(.1, 24), name = "State Population" ) 
+
+```
